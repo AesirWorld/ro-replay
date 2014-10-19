@@ -1,0 +1,25 @@
+# Routes
+# This file defines all application routes (Higher priority routes first)
+# ~~~~
+
+module:testrunner
+
+GET     /                                       App.Index
+
+# Start a live stream 
+POST    /v1/stream/start						Replay.Register
+
+# Close a replay stream
+POST    /v1/stream/stop							Replay.Close
+
+# Subscribe to an replay stream
+WS      /v1/stream/subscribe/:stream_id			Replay.Subscribe	
+
+# Retrieve replay buffer
+# This buffers are compressed so we don't send them with the replay data
+GET    /v1/replay/buffer/:uid					Replay.Buffer
+
+# Retrieve replay information
+GET    /v1/replay/:uid							Replay.Data
+
+
