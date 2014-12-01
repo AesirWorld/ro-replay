@@ -23,13 +23,14 @@ type ReplayRegisterResponse struct {
 }
 
 type ReplayDataResponse struct {
-	AID            int    `json:"account_id"`
-	UID            string `json:"uid"`
-	BufferID       string `json:"replay_buffer_id"`
-	BufferURI      string `json:"replay_buffer_uri"`
-	RecordingStart int    `json:"recording_start"`
-	RecordingEnd   int    `json:"recording_end"`
-	Err            string `json:"err"`
+	AID            int                    `json:"account_id"`
+	UID            string                 `json:"uid"`
+	BufferID       string                 `json:"replay_buffer_id"`
+	BufferURI      string                 `json:"replay_buffer_uri"`
+	RecordingStart int                    `json:"recording_start"`
+	RecordingEnd   int                    `json:"recording_end"`
+	State          map[string]interface{} `json:"state"`
+	Err            string                 `json:"err"`
 }
 
 func (c *Replay) Data(uid string) revel.Result {
@@ -37,10 +38,11 @@ func (c *Replay) Data(uid string) revel.Result {
 	var buffer_id string
 	var start int
 	var end int
+	var state map[string]interface{}
 
-	row := Db.QueryRow("SELECT account_id, replay_buffer_id, recording_start, recording_end FROM ro_replays WHERE uid = ?", uid)
+	row := Db.QueryRow("SELECT account_id, replay_buffer_id, recording_start, recording_end, state FROM ro_replays WHERE uid = ?", uid)
 
-	err := row.Scan(&account_id, &buffer_id, &start, &end)
+	err := row.Scan(&account_id, &buffer_id, &start, &end, &state)
 
 	switch {
 	case err == sql.ErrNoRows:
@@ -59,9 +61,10 @@ func (c *Replay) Data(uid string) revel.Result {
 			AID:            account_id,
 			UID:            uid,
 			BufferID:       buffer_id,
-			BufferURI:      "http://127.0.0.1/v1/replay/buffer/" + buffer_id,
+			BufferURI:      "http://127.0.0.1:2020/v1/replay/buffer/" + buffer_id,
 			RecordingStart: start,
 			RecordingEnd:   end,
+			State:          state,
 		})
 	}
 }
@@ -77,7 +80,10 @@ func (r RenderReplay) Apply(req *revel.Request, resp *revel.Response) {
 	reader, err := zlib.NewReader(r.reader)
 
 	if err != nil {
-		panic(err)
+		resp.WriteHeader(http.StatusInternalServerError, "text/plain")
+		resp.Out.Write([]byte("Failed while trying to uncompress buffer"))
+		log.Println(err)
+		return
 	}
 
 	// Little hack: set to `text/plain` so CloudFlare caches and gzips this resource
@@ -103,7 +109,7 @@ func (r RenderReplay) Apply(req *revel.Request, resp *revel.Response) {
 func (c *Replay) Buffer(uid string) revel.Result {
 	blob_host, _ := revel.Config.String("db.endpoint") // Little hack, its temporary
 
-	replay_uri := fmt.Sprintf("%s_blobs/ro_replays/%s", blob_host, uid)
+	replay_uri := fmt.Sprintf("%s_blobs/ro_replays_buffer/%s", blob_host, uid)
 
 	resp, err := http.Get(replay_uri)
 
